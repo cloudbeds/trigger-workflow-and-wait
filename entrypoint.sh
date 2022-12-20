@@ -14,6 +14,15 @@ usage_docs() {
 GITHUB_API_URL="${API_URL:-https://api.github.com}"
 GITHUB_SERVER_URL="${SERVER_URL:-https://github.com}"
 
+get_gh_token() {
+  if [ -n "${INPUT_PRIVATE_KEY}" ] && [ -n "${INPUT_APP_ID}" ]
+  then
+    export INPUT_GITHUB_API_URL="$GITHUB_API_URL"
+    export INPUT_REPOSITORY="${INPUT_OWNER}/${INPUT_REPO}"
+    INPUT_GITHUB_TOKEN=$(node /github-app-token/index.js)
+  fi
+}
+
 validate_args() {
   wait_interval=10 # Waits for 10 seconds
   if [ "${INPUT_WAIT_INTERVAL}" ]
@@ -190,6 +199,7 @@ wait_for_workflow_to_finish() {
 }
 
 main() {
+  get_gh_token
   validate_args
 
   if [ "${trigger_workflow}" = true ]

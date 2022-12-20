@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - gh-app-token
     paths-ignore:
       - '**.md'
       - '.github/**'
