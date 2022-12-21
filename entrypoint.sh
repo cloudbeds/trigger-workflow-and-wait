@@ -11,8 +11,19 @@ usage_docs() {
   echo "    github_token: \${{ secrets.GITHUB_PERSONAL_ACCESS_TOKEN }}"
   echo "    workflow_file_name: main.yaml"
 }
+
 GITHUB_API_URL="${API_URL:-https://api.github.com}"
 GITHUB_SERVER_URL="${SERVER_URL:-https://github.com}"
+
+get_gh_token() {
+  if [ -n "${INPUT_PRIVATE_KEY}" ] && [ -n "${INPUT_APP_ID}" ]
+  then
+    export INPUT_GITHUB_API_URL="$GITHUB_API_URL"
+    export INPUT_REPOSITORY="${INPUT_OWNER}/${INPUT_REPO}"
+    INPUT_GITHUB_TOKEN=$(node /github-app-token/index.js)
+    echo "Token length $(echo "$INPUT_GITHUB_TOKEN" | wc )"
+  fi
+}
 
 validate_args() {
   wait_interval=10 # Waits for 10 seconds
@@ -69,10 +80,10 @@ validate_args() {
     exit 1
   fi
 
-  client_payload=$(echo '{}' | jq -c)
+  client_payload=$(echo '{}' | jq -c '.')
   if [ "${INPUT_CLIENT_PAYLOAD}" ]
   then
-    client_payload=$(echo "${INPUT_CLIENT_PAYLOAD}" | jq -c)
+    client_payload=$(echo "${INPUT_CLIENT_PAYLOAD}" | jq -c '.')
   fi
 
   ref="main"
@@ -89,7 +100,7 @@ lets_wait() {
 
 api() {
   path=$1; shift
-  if response=$(curl --fail-with-body -sSL \
+  if response=$(curl -sSL \
       "${GITHUB_API_URL}/repos/${INPUT_OWNER}/${INPUT_REPO}/actions/$path" \
       -H "Authorization: Bearer ${INPUT_GITHUB_TOKEN}" \
       -H 'Accept: application/vnd.github.v3+json' \
@@ -190,6 +201,7 @@ wait_for_workflow_to_finish() {
 }
 
 main() {
+  get_gh_token
   validate_args
 
   if [ "${trigger_workflow}" = true ]
