@@ -155,8 +155,8 @@ wait_for_workflow_to_finish() {
   echo "Waiting for workflow to finish:"
   echo "The workflow id is [${last_workflow_id}]."
   echo "The workflow logs can be found at ${last_workflow_url}"
-  echo "::set-output name=workflow_id::${last_workflow_id}"
-  echo "::set-output name=workflow_url::${last_workflow_url}"
+  echo "workflow_id=${last_workflow_id}" >> $GITHUB_OUTPUT
+  echo "workflow_url=${last_workflow_url}" >> $GITHUB_OUTPUT
   echo ""
 
   conclusion=null
