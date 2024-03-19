@@ -10,7 +10,7 @@ on:
 jobs:
   build-push:
     name: Build and push application image
-    runs-on: default
+    runs-on: ubuntu-latest
     permissions:
       id-token: write
       contents: read

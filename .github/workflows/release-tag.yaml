@@ -10,7 +10,7 @@ jobs:
 
   re-tag:
     name: Re-tag image
-    runs-on: default
+    runs-on: ubuntu-latest
     permissions:
       id-token: write
       contents: read
