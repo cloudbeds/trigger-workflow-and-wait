@@ -12,7 +12,7 @@ inputs:
     description: "The repository where the workflow is contained."
     required: true
   github_token:
-    description: "The Github access token with access to the repository. Its recommended you put it under secrets."
+    description: "The Github access token with access to the repository. It is recommended you put this token under secrets."
     required: true
   github_user:
     description: "The name of the github user whose access token is being used to trigger the workflow."
@@ -38,11 +38,21 @@ inputs:
   wait_workflow:
     description: 'Wait for workflow to finish. default: true'
     required: false
+  comment_downstream_url:
+    description: 'Comment API link for commenting the downstream job URL'
+    required: false
+    default: ''
+  comment_github_token:
+    description: "The Github access token with access to the repository for comment URL. It is recommended you put this token under secrets."
+    required: false
+    default: ${{ github.token }}
 outputs:
   workflow_id:
     description: The ID of the workflow that was triggered by this action
   workflow_url:
     description: The URL of the workflow that was triggered by this action
+  conclusion:
+    description: Conclusion of the job, i.e pass/failure
 runs:
   using: 'docker'
   image: 'Dockerfile'
