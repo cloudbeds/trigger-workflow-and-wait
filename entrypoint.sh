@@ -84,7 +84,7 @@ validate_args() {
 
 lets_wait() {
   echo "Sleeping for ${wait_interval} seconds"
-  sleep $wait_interval
+  sleep "$wait_interval"
 }
 
 api() {
@@ -101,7 +101,11 @@ api() {
     echo >&2 "api failed:"
     echo >&2 "path: $path"
     echo >&2 "response: $response"
-    exit 1
+    if [[ "$response" == *'"Server Error"'* ]]; then
+      echo "Server error - trying again"
+    else
+      exit 1
+    fi
   fi
 }
 
@@ -148,6 +152,19 @@ trigger_workflow() {
   join -v2 <(echo "$OLD_RUNS") <(echo "$NEW_RUNS")
 }
 
+comment_downstream_link() {
+  if response=$(curl --fail-with-body -sSL -X POST \
+      "${INPUT_COMMENT_DOWNSTREAM_URL}" \
+      -H "Authorization: Bearer ${INPUT_COMMENT_GITHUB_TOKEN}" \
+      -H 'Accept: application/vnd.github.v3+json' \
+      -d "{\"body\": \"Running downstream job at $1\"}")
+  then
+    echo "$response"
+  else
+    echo >&2 "failed to comment to ${INPUT_COMMENT_DOWNSTREAM_URL}:"
+  fi
+}
+
 wait_for_workflow_to_finish() {
   last_workflow_id=${1:?}
   last_workflow_url="${GITHUB_SERVER_URL}/${INPUT_OWNER}/${INPUT_REPO}/actions/runs/${last_workflow_id}"
@@ -158,6 +175,10 @@ wait_for_workflow_to_finish() {
   echo "workflow_id=${last_workflow_id}" >> $GITHUB_OUTPUT
   echo "workflow_url=${last_workflow_url}" >> $GITHUB_OUTPUT
   echo ""
+
+  if [ -n "${INPUT_COMMENT_DOWNSTREAM_URL}" ]; then
+    comment_downstream_link ${last_workflow_url}
+  fi
 
   conclusion=null
   status=
@@ -172,6 +193,7 @@ wait_for_workflow_to_finish() {
 
     echo "Checking conclusion [${conclusion}]"
     echo "Checking status [${status}]"
+    echo "conclusion=${conclusion}" >> $GITHUB_OUTPUT
   done
 
   if [[ "${conclusion}" == "success" && "${status}" == "completed" ]]
