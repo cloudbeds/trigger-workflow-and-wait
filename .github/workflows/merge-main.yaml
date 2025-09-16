@@ -10,15 +10,13 @@ on:
 jobs:
   build-push:
     name: Build and push application image
-    runs-on: ubuntu-latest
+    runs-on: x1-core
     permissions:
       id-token: write
       contents: read
     steps:
 
       - name: Build and push application image
-        uses: cloudbeds/composite-actions/docker/build-push/aws-ecr@v2
+        uses: cloudbeds/composite-actions/docker/build-push/remote@v2
         with:
-          # image_name: Only registry path is required. AWS ECR registry address will be automatically set by composite-actions
-          image_name: ${{ github.event.repository.name }}
-          image_tag: ${{ github.sha }}
+          push: true
