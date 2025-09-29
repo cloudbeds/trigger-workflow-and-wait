@@ -10,13 +10,7 @@ on:
 jobs:
   build-push:
     name: Build and push application image
-    runs-on: x1-core
-    permissions:
-      id-token: write
-      contents: read
-    steps:
-
-      - name: Build and push application image
-        uses: cloudbeds/composite-actions/docker/build-push/remote@v2
-        with:
-          push: true
+    uses: ./.github/workflows/docker-build.yaml
+    secrets: inherit
+    with:
+      push: true
