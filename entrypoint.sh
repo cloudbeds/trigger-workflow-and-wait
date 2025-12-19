@@ -123,8 +123,18 @@ get_workflow_runs() {
 
   echo "Getting workflow runs using query: ${query}" >&2
 
-  api "workflows/${INPUT_WORKFLOW_FILE_NAME}/runs?${query}" |
-  jq -r '.workflow_runs[].id' |
+  response=$(api "workflows/${INPUT_WORKFLOW_FILE_NAME}/runs?${query}")
+
+  # Validate response is valid JSON with workflow_runs array
+  if ! echo "$response" | jq -e '.workflow_runs' > /dev/null 2>&1; then
+    echo "Error: Invalid API response or missing workflow_runs" >&2
+    echo "Response: $response" >&2
+    return 1
+  fi
+
+  echo "$response" |
+  jq -r '.workflow_runs[].id | select(. != null) | tostring' |
+  grep -E '^[0-9]+$' |
   sort # Sort to ensure repeatable order, and lexicographically for compatibility with join
 }
 
