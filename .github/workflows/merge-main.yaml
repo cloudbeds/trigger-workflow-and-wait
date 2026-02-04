@@ -20,3 +20,4 @@ jobs:
         uses: cloudbeds/composite-actions/docker/build-push/remote@v2
         with:
           push: true
+          platforms: linux/amd64,linux/arm64
