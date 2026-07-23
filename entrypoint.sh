@@ -82,11 +82,6 @@ validate_args() {
   fi
 }
 
-lets_wait() {
-  echo "Sleeping for ${wait_interval} seconds"
-  sleep "$wait_interval"
-}
-
 # Perform a GitHub REST API call, retrying transient failures.
 #
 # GitHub occasionally returns transient errors on these endpoints - most notably

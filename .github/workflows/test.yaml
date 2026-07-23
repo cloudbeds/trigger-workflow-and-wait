@@ -16,10 +16,22 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Run api() retry tests
+      - name: Run api() retry tests (bash)
         run: |
           set -e
           for t in tests/*.test.sh; do
-            echo "== $t =="
+            echo "== $t (bash) =="
             bash "$t"
           done
+
+      # Exercise the real runtime shell. The Docker entrypoint runs the script
+      # with busybox `sh` in alpine:3.15.0 (see Dockerfile), which relies on ash
+      # extensions the ubuntu runner's /bin/sh (dash) does not support, so run
+      # the suite inside that image rather than under the host shell.
+      - name: Run api() retry tests (busybox sh, alpine:3.15.0)
+        run: |
+          docker run --rm -v "$PWD":/work -w /work \
+            public.ecr.aws/docker/library/alpine:3.15.0 \
+            sh -c 'apk add --no-cache bash curl jq coreutils >/dev/null && \
+                   set -e && \
+                   for t in tests/*.test.sh; do echo "== $t (busybox) =="; sh "$t"; done'

@@ -13,6 +13,7 @@ export CURL_STUB_COUNTER
 CURL_STUB_COUNTER=$(mktemp)
 export CURL_STUB_SCENARIO
 CURL_STUB_SCENARIO=$(mktemp)
+trap 'rm -f "$CURL_STUB_COUNTER" "$CURL_STUB_SCENARIO"' EXIT
 
 # Values api() reads to build the request URL (contents irrelevant to the stub).
 export INPUT_OWNER=cloudbeds INPUT_REPO=argocd-mfd INPUT_GITHUB_TOKEN=x
