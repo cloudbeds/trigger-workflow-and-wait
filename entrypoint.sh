@@ -126,6 +126,10 @@ api() {
     fi
 
     # Retry transport failures (000), rate limiting (429) and server errors (5xx).
+    # Retrying the non-idempotent dispatch POST assumes the failure was
+    # pre-creation - true for the observed "Failed to run workflow dispatch" 500.
+    # Even if a run were somehow created, trigger_workflow keys off newly-appeared
+    # runs and an ArgoCD sync is idempotent, so a duplicate is harmless.
     if [ "$http_code" = "000" ] || [ "$http_code" = "429" ] || [ "$http_code" -ge 500 ]; then
       if [ "$attempt" -lt "$max_attempts" ]; then
         echo >&2 "api transient failure (HTTP ${http_code}) on ${path}; attempt ${attempt}/${max_attempts}, retrying in ${delay}s"

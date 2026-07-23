@@ -75,6 +75,33 @@ else
   die "retries a transport failure: rc=$rc attempts=$(attempts) out=$out"
 fi
 
+# --- Test 5: a 429 (rate limit) is retried like a 5xx -------------------------
+scenario '429\t{"message":"API rate limit exceeded"}\n204\t\n'
+out=$(api "workflows/update-application.yaml/dispatches" --data '{}' 2>/dev/null); rc=$?
+if [ "$rc" -eq 0 ] && [ "$(attempts)" -eq 2 ]; then
+  pass "retries a 429 then succeeds (2 attempts)"
+else
+  die "retries a 429: rc=$rc attempts=$(attempts) (want rc=0 attempts=2)"
+fi
+
+# --- Test 6: backoff doubles each retry and caps at API_RETRY_MAX_SECONDS ------
+# The sleep stub records each requested delay (via SLEEP_LOG) instead of really
+# sleeping, so the backoff sequence can be asserted without waiting. With base 3
+# and cap 10 over 5 persistent failures, the delays are 3, 6, 10 (12 capped), 10.
+SLEEP_LOG=$(mktemp)
+scenario "$S500\n$S500\n$S500\n$S500\n$S500\n"
+out=$(
+  export SLEEP_LOG API_RETRY_BASE_SECONDS=3 API_RETRY_MAX_SECONDS=10 API_MAX_ATTEMPTS=5
+  api "workflows/update-application.yaml/dispatches" --data '{}' 2>/dev/null
+); rc=$?
+seq=$(tr '\n' ' ' < "$SLEEP_LOG" | sed 's/ *$//')
+rm -f "$SLEEP_LOG"
+if [ "$rc" -ne 0 ] && [ "$(attempts)" -eq 5 ] && [ "$seq" = "3 6 10 10" ]; then
+  pass "backoff doubles then caps at API_RETRY_MAX_SECONDS (delays: 3 6 10 10)"
+else
+  die "backoff sequence: rc=$rc attempts=$(attempts) delays=[$seq] (want attempts=5 delays='3 6 10 10')"
+fi
+
 echo "----"
 if [ "$fail" -eq 0 ]; then echo "ALL PASS"; else echo "SOME FAILED"; fi
 exit "$fail"
