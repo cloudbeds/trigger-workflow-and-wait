@@ -87,26 +87,69 @@ lets_wait() {
   sleep "$wait_interval"
 }
 
+# Perform a GitHub REST API call, retrying transient failures.
+#
+# GitHub occasionally returns transient errors on these endpoints - most notably
+# the workflow-dispatch trigger, which intermittently 500s with the body
+# {"message":"Failed to run workflow dispatch","status":"500"}. Network errors
+# and HTTP 429/5xx are retried with capped exponential backoff. Other 4xx
+# responses are client errors and fail fast, and once retries are exhausted the
+# failure is still surfaced to the caller so a genuine outage is never masked.
+#
+# Tunable via environment (defaults in parentheses):
+#   API_MAX_ATTEMPTS        total attempts before giving up   (5)
+#   API_RETRY_BASE_SECONDS  first backoff delay; doubles each retry (3)
+#   API_RETRY_MAX_SECONDS   cap on any single backoff delay   (30)
 api() {
-  path=$1; shift
-  if response=$(curl --fail-with-body -sSL \
-      "${GITHUB_API_URL}/repos/${INPUT_OWNER}/${INPUT_REPO}/actions/$path" \
-      -H "Authorization: Bearer ${INPUT_GITHUB_TOKEN}" \
-      -H 'Accept: application/vnd.github.v3+json' \
-      -H 'Content-Type: application/json' \
-      "$@")
-  then
-    echo "$response"
-  else
+  local path=$1; shift
+  local max_attempts=${API_MAX_ATTEMPTS:-5}
+  local delay=${API_RETRY_BASE_SECONDS:-3}
+  local max_delay=${API_RETRY_MAX_SECONDS:-30}
+  local attempt=1
+  local body_file http_code response
+
+  while true; do
+    body_file=$(mktemp)
+    # No --fail-with-body: capture the status code via -w and branch on it,
+    # so we can tell a retryable 5xx apart from a fatal 4xx. A transport-level
+    # failure (curl exits non-zero, prints nothing) is mapped to code 000.
+    http_code=$(curl -sSL \
+        -o "$body_file" \
+        -w '%{http_code}' \
+        "${GITHUB_API_URL}/repos/${INPUT_OWNER}/${INPUT_REPO}/actions/$path" \
+        -H "Authorization: Bearer ${INPUT_GITHUB_TOKEN}" \
+        -H 'Accept: application/vnd.github.v3+json' \
+        -H 'Content-Type: application/json' \
+        "$@") || http_code=000
+    response=$(cat "$body_file")
+    rm -f "$body_file"
+
+    # Success (2xx): return the response body.
+    if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
+      echo "$response"
+      return 0
+    fi
+
+    # Retry transport failures (000), rate limiting (429) and server errors (5xx).
+    if [ "$http_code" = "000" ] || [ "$http_code" = "429" ] || [ "$http_code" -ge 500 ]; then
+      if [ "$attempt" -lt "$max_attempts" ]; then
+        echo >&2 "api transient failure (HTTP ${http_code}) on ${path}; attempt ${attempt}/${max_attempts}, retrying in ${delay}s"
+        [ -n "$response" ] && echo >&2 "response: $response"
+        sleep "$delay"
+        attempt=$((attempt + 1))
+        delay=$((delay * 2))
+        [ "$delay" -gt "$max_delay" ] && delay=$max_delay
+        continue
+      fi
+    fi
+
+    # Non-retryable error, or retries exhausted: surface the failure.
     echo >&2 "api failed:"
     echo >&2 "path: $path"
+    echo >&2 "http_code: $http_code"
     echo >&2 "response: $response"
-    if [[ "$response" == *'"Server Error"'* ]]; then
-      echo >&2 "Server error - trying again"
-    else
-      exit 1
-    fi
-  fi
+    exit 1
+  done
 }
 
 lets_wait() {
@@ -242,4 +285,9 @@ main() {
   fi
 }
 
-main
+# Allow the script to be sourced by the test harness without executing main.
+# TWAW_SOURCE_ONLY is never set in production (the Docker entrypoint runs the
+# script directly), so the default behaviour is unchanged.
+if [ "${TWAW_SOURCE_ONLY:-}" != "1" ]; then
+  main
+fi
