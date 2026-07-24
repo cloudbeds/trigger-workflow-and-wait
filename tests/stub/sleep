@@ -1,0 +1,6 @@
+#!/bin/sh
+# Test stub for `sleep`: records the requested duration (when SLEEP_LOG is set)
+# and returns immediately instead of actually sleeping, so backoff timing can be
+# asserted without real delays. When SLEEP_LOG is unset it is a silent no-op.
+[ -n "${SLEEP_LOG:-}" ] && printf '%s\n' "$1" >> "$SLEEP_LOG"
+exit 0

@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# Faithful-enough `curl` stub for exercising entrypoint.sh's api() function.
+#
+# It understands only the flags api() actually uses (--fail-with-body, -o <file>,
+# -w <fmt>) and ignores everything else (-H, -sSL, --data, the URL). Behaviour is
+# driven by two files so a single test can script a sequence of responses:
+#
+#   $CURL_STUB_SCENARIO : one line per attempt. Either "<CODE><TAB><BODY>" or the
+#                         literal token NETERR to simulate a transport failure.
+#   $CURL_STUB_COUNTER  : running attempt counter (created on first call).
+#
+# It emulates real curl closely enough that both the old (--fail-with-body, body
+# on stdout) and the new (-o file + -w '%{http_code}') implementations work.
+set -u
+
+fail_with_body=0
+out_file=""
+w_fmt=""
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --fail-with-body) fail_with_body=1 ;;
+    -o) shift; out_file="$1" ;;
+    -w) shift; w_fmt="$1" ;;
+  esac
+  shift
+done
+
+n=$(cat "$CURL_STUB_COUNTER" 2>/dev/null || echo 0)
+n=$((n + 1))
+echo "$n" > "$CURL_STUB_COUNTER"
+
+line=$(sed -n "${n}p" "$CURL_STUB_SCENARIO")
+if [ "$line" = "NETERR" ] || [ -z "$line" ]; then
+  # Transport-level failure (connection reset, DNS, timeout): no HTTP response.
+  exit 7
+fi
+
+code=$(printf '%s' "$line" | cut -f1)
+body=$(printf '%s' "$line" | cut -f2-)
+
+# Body goes to the -o file if requested, otherwise to stdout (like real curl).
+if [ -n "$out_file" ]; then
+  printf '%s' "$body" > "$out_file"
+else
+  printf '%s' "$body"
+fi
+
+# The -w template is written to stdout with %{http_code} substituted.
+if [ -n "$w_fmt" ]; then
+  printf '%s' "${w_fmt//%\{http_code\}/$code}"
+fi
+
+# --fail-with-body makes real curl exit 22 on HTTP >= 400 (still emitting body).
+if [ "$fail_with_body" -eq 1 ] && [ "$code" -ge 400 ]; then
+  exit 22
+fi
+exit 0
